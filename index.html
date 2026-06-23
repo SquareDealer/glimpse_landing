@@ -1,0 +1,1503 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Glimpse — A glance is all it takes</title>
+  <meta name="description" content="Glimpse is a Mac helper that sees the part of your screen you select and explains exactly what to do next." />
+  <meta name="theme-color" content="#F4F0E3" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Glimpse — Stuck? Just show it." />
+  <meta property="og:description" content="Press a key, circle what's confusing, ask. Glimpse reads the screen and gives clear steps in seconds." />
+  <meta property="og:image" content="assets/mascot-pebble.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="assets/mascot-pebble.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    /* ── tokens (mirror glim-shared.jsx) ─────────────────────────────────── */
+    :root {
+      --paper:  #F4F0E3;
+      --cream:  #E8E2D2;
+      --card:   #FAF7EE;
+      --vellum: #FDFBF4;
+      --black:  #0A0A0B;
+      --charcoal: #141416;
+      --graphite: #1F1F22;
+      --ink:    #15110C;
+      --ink2:   #3A342B;
+      --muted:  #7A7163;
+      --whisper:#A89E8B;
+      --line:   rgba(21,17,12,.10);
+      --hairline: rgba(21,17,12,.05);
+      --lineDark: rgba(242,238,226,.10);
+      --accent: #E64B1F;
+      --accentHi: #FF6A3D;
+      --accentLo: #B83811;
+      --font: "Geist", "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+      --display: "Instrument Serif", "Cormorant Garamond", Georgia, serif;
+      --mono: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+    body {
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    img { display: block; max-width: 100%; }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* paper grain — extremely subtle */
+    body::before {
+      content: "";
+      position: fixed; inset: 0;
+      pointer-events: none;
+      background-image: radial-gradient(rgba(21,17,12,.025) 1px, transparent 1px);
+      background-size: 3px 3px;
+      mix-blend-mode: multiply;
+      opacity: .35;
+      z-index: 0;
+    }
+
+    /* ── layout primitives ───────────────────────────────────────────────── */
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 32px;
+      position: relative;
+      z-index: 1;
+    }
+    .eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    h1, h2, h3, h4 {
+      font-family: var(--display);
+      font-weight: 400;
+      color: var(--ink);
+      letter-spacing: -0.015em;
+      margin: 0;
+    }
+    h1 { font-size: clamp(54px, 8vw, 108px); line-height: 0.98; letter-spacing: -0.025em; }
+    h2 { font-size: clamp(34px, 4.2vw, 56px); line-height: 1.08; }
+    h3 { font-size: clamp(22px, 2vw, 28px); line-height: 1.2; }
+    p { margin: 0; }
+    em { font-style: italic; }
+    code, .mono {
+      font-family: var(--mono);
+      font-size: 0.92em;
+      background: var(--cream);
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: var(--ink2);
+      border: 1px solid var(--hairline);
+    }
+
+    /* ── keycap (matches Kbd in glim-shared) ─────────────────────────────── */
+    .kbd {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 28px; height: 28px; padding: 0 8px;
+      font-family: var(--mono); font-size: 13px; font-weight: 500;
+      color: var(--ink); background: var(--vellum);
+      border: 1px solid var(--line);
+      border-bottom-width: 2px;
+      border-radius: 5px; line-height: 1;
+    }
+    .kbd-row { display: inline-flex; gap: 6px; align-items: center; }
+    .kbd-plus { color: var(--whisper); font-family: var(--mono); font-size: 12px; }
+
+    /* ── buttons ─────────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 14px 22px;
+      font-family: var(--font);
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      border-radius: 7px;
+      border: 1px solid var(--ink);
+      background: var(--ink);
+      color: var(--paper);
+      transition: transform .15s ease, background .15s ease;
+    }
+    .btn:hover { background: #000; transform: translateY(-1px); }
+    .btn .apple {
+      width: 14px; height: 14px;
+      display: inline-block;
+    }
+    .btn-meta {
+      display: block;
+      margin-top: 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+
+    /* ── nav ─────────────────────────────────────────────────────────────── */
+    nav.top {
+      position: sticky; top: 0; z-index: 20;
+      backdrop-filter: blur(10px);
+      background: rgba(244,240,227,.78);
+      border-bottom: 1px solid var(--hairline);
+    }
+    nav.top .inner {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 32px;
+      max-width: 1180px; margin: 0 auto;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; }
+    .brand img { width: 22px; height: 22px; }
+    .brand-name {
+      font-family: var(--display);
+      font-size: 22px;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .nav-links { display: flex; align-items: center; gap: 28px; }
+    .nav-links a {
+      font-size: 14px; color: var(--ink2);
+      transition: color .15s ease;
+    }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-cta,
+    .nav-links a.nav-cta {
+      padding: 8px 14px;
+      background: var(--ink);
+      color: var(--paper);
+      border-radius: 5px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .nav-cta:hover,
+    .nav-links a.nav-cta:hover { background: #000; color: var(--paper); }
+
+    /* ── hero ────────────────────────────────────────────────────────────── */
+    section.hero {
+      padding: 80px 0 100px;
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    section.hero > .blob {
+      width: 30%; aspect-ratio: 1;
+      left: -6%; top: 30%;
+      animation: blob-drift-a 16s ease-in-out infinite;
+      opacity: .75;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+      gap: 80px;
+      align-items: center;
+    }
+    .hero h1 em { color: var(--ink); }
+    .hero-sub {
+      margin-top: 28px;
+      font-size: 19px;
+      color: var(--ink2);
+      max-width: 480px;
+      line-height: 1.45;
+    }
+    .hero-keys {
+      margin-top: 36px;
+      display: flex; align-items: center; gap: 14px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .hero-cta { margin-top: 36px; }
+
+    /* ── ambient orange glow blobs ────────────────────────────────────── */
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      filter: blur(48px);
+      z-index: 0;
+    }
+    .blob-orange {
+      background: radial-gradient(closest-side,
+        rgba(230,75,31,.28) 0%,
+        rgba(230,75,31,.10) 45%,
+        rgba(230,75,31,0) 75%);
+    }
+    .blob-amber {
+      background: radial-gradient(closest-side,
+        rgba(255,140,80,.26) 0%,
+        rgba(255,140,80,.09) 45%,
+        rgba(255,140,80,0) 75%);
+    }
+    @keyframes blob-drift-a {
+      0%,100% { transform: translate(0,0) scale(1); }
+      50%     { transform: translate(2%,-3%) scale(1.06); }
+    }
+    @keyframes blob-drift-b {
+      0%,100% { transform: translate(0,0) scale(1); }
+      50%     { transform: translate(-2%,3%) scale(1.04); }
+    }
+
+    /* ── hero visual: mascot + floating product cards ──────────────────── */
+    .scene {
+      position: relative;
+      aspect-ratio: 1 / 1.02;
+      width: 100%;
+      max-width: 560px;
+      margin-left: auto;
+      isolation: isolate;
+    }
+    .scene .blob { z-index: 0; }
+    .scene .blob.g1 {
+      width: 70%; aspect-ratio: 1;
+      top: -8%; left: -6%;
+      animation: blob-drift-a 11s ease-in-out infinite;
+    }
+    .scene .blob.g2 {
+      width: 55%; aspect-ratio: 1;
+      bottom: 4%; right: -6%;
+      animation: blob-drift-b 13s ease-in-out infinite;
+    }
+    .hero-mascot {
+      position: absolute;
+      width: 58%;
+      bottom: 2%;
+      left: 0;
+      z-index: 2;
+      filter: drop-shadow(0 36px 40px rgba(21,17,12,.18));
+      animation: mascot-bob 6s ease-in-out infinite;
+    }
+    @keyframes mascot-bob {
+      0%,100% { transform: translateY(0) rotate(-1deg); }
+      50%     { transform: translateY(-2%) rotate(1deg); }
+    }
+
+    /* small code snippet card — the "thing you circled" */
+    .hero-snippet {
+      position: absolute;
+      top: 4%; right: 0;
+      width: 56%;
+      background: var(--charcoal);
+      border-radius: 10px;
+      overflow: hidden;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: #c9c2b0;
+      z-index: 3;
+      box-shadow:
+        0 1px 0 rgba(255,255,255,.04) inset,
+        0 24px 48px -18px rgba(21,17,12,.45),
+        0 8px 16px -10px rgba(21,17,12,.25);
+      transform: rotate(-2deg);
+    }
+    .snip-chrome {
+      height: 22px;
+      background: var(--graphite);
+      display: flex; align-items: center; gap: 5px;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--lineDark);
+    }
+    .snip-dot { width: 7px; height: 7px; border-radius: 50%; background: #3a3a3d; }
+    .snip-title {
+      margin-left: 6px;
+      color: rgba(242,238,226,.45);
+      font-size: 10px;
+    }
+    .snip-body {
+      padding: 12px 14px 14px;
+      line-height: 1.65;
+      position: relative;
+    }
+    .snip-body .cm { color: #54504a; }
+    .snip-body .kw { color: #9c95a8; }
+    .snip-body .fn { color: var(--accentHi); }
+    .snip-body .str { color: var(--sun, #C9A85C); }
+    .snip-sel {
+      position: absolute;
+      left: 8px; right: 8px;
+      top: 30px; height: 18px;
+      border: 1.5px dashed var(--accent);
+      background: rgba(230,75,31,.08);
+      border-radius: 3px;
+      animation: sel-pulse 2.4s ease-in-out infinite;
+    }
+    .snip-sel::before, .snip-sel::after,
+    .snip-sel i::before, .snip-sel i::after {
+      content: ""; position: absolute;
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border: 1.5px solid var(--vellum);
+      border-radius: 1px;
+    }
+    .snip-sel::before { top: -4px; left: -4px; }
+    .snip-sel::after  { top: -4px; right: -4px; }
+    .snip-sel i::before { bottom: -4px; left: -4px; }
+    .snip-sel i::after  { bottom: -4px; right: -4px; }
+
+    /* answer card now positioned in the new scene */
+    .hero-answer {
+      position: absolute;
+      top: 38%; right: -2%;
+      width: 64%;
+      background: var(--vellum);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px 18px 18px;
+      z-index: 4;
+      transform: rotate(1.5deg);
+      box-shadow:
+        0 1px 0 rgba(255,255,255,.7) inset,
+        0 30px 60px -20px rgba(21,17,12,.28),
+        0 10px 20px -12px rgba(21,17,12,.18);
+    }
+    .win-chrome {
+      height: 28px; background: var(--graphite);
+      display: flex; align-items: center; gap: 6px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--lineDark);
+    }
+    .win-dot { width: 9px; height: 9px; border-radius: 50%; background: #3a3a3d; }
+    .win-title {
+      flex: 1; text-align: center;
+      font-family: var(--mono); font-size: 11px;
+      color: rgba(242,238,226,.5);
+      letter-spacing: -0.1px;
+    }
+    .win-body {
+      display: flex; height: calc(100% - 28px);
+      font-family: var(--mono); font-size: 11px;
+      color: #C9C2B0; line-height: 1.65;
+    }
+    .gutter {
+      width: 32px; background: var(--graphite);
+      padding: 10px 4px; color: #54504a;
+      text-align: right; border-right: 1px solid var(--lineDark);
+      font-size: 10.5px;
+    }
+    .gutter div { line-height: 1.65; }
+    .code {
+      flex: 1; padding: 10px 14px;
+      position: relative;
+    }
+    .code .kw  { color: #9c95a8; }
+    .code .str { color: #C9A85C; }
+    .code .fn  { color: #FF6A3D; }
+    .code .ty  { color: #7C8F84; }
+    .code .cm  { color: #54504a; }
+
+    /* the red selection */
+    .sel-box {
+      position: absolute;
+      left: 6px; right: 6px;
+      top: 75px; height: 50px;
+      border: 1.5px dashed var(--accent);
+      background: rgba(230,75,31,.07);
+      border-radius: 3px;
+      animation: sel-pulse 2.4s ease-in-out infinite;
+    }
+    .sel-handles {
+      position: absolute; inset: 0;
+      pointer-events: none;
+    }
+    .sel-handles::before, .sel-handles::after,
+    .sel-handles span::before, .sel-handles span::after {
+      content: ""; position: absolute;
+      width: 7px; height: 7px;
+      background: var(--accent);
+      border: 1.5px solid var(--vellum);
+      border-radius: 1px;
+    }
+    .sel-handles::before { top: -4px; left: -4px; }
+    .sel-handles::after  { top: -4px; right: -4px; }
+    .sel-handles span::before { bottom: -4px; left: -4px; }
+    .sel-handles span::after  { bottom: -4px; right: -4px; }
+
+    @keyframes sel-pulse {
+      0%,100% { border-color: var(--accent); }
+      50%     { border-color: var(--accentHi); }
+    }
+
+    /* answer card */
+    .answer {
+      position: absolute;
+      right: 0; bottom: 0;
+      width: 64%;
+      background: var(--vellum);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px 18px 18px;
+      box-shadow:
+        0 1px 0 rgba(255,255,255,.7) inset,
+        0 24px 48px -16px rgba(21,17,12,.22),
+        0 8px 16px -10px rgba(21,17,12,.15);
+    }
+    .answer-head {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 12px;
+    }
+    .answer-head img { width: 24px; height: 24px; }
+    .answer-head .label {
+      font-family: var(--mono); font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .answer-head .dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--accent);
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+
+    .answer-q {
+      font-family: var(--display);
+      font-size: 18px;
+      font-style: italic;
+      color: var(--ink);
+      line-height: 1.25;
+      margin-bottom: 14px;
+    }
+    .answer-steps { display: flex; flex-direction: column; gap: 9px; }
+    .answer-step { display: flex; gap: 10px; align-items: flex-start; }
+    .step-num {
+      flex-shrink: 0;
+      width: 18px; height: 18px;
+      border: 1px solid var(--line);
+      background: var(--cream);
+      border-radius: 3px;
+      font-family: var(--mono); font-size: 11px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); line-height: 1;
+    }
+    .step-text {
+      font-size: 13px; color: var(--ink2);
+      line-height: 1.45;
+    }
+    .step-text code {
+      font-size: 11.5px;
+      padding: 1px 5px;
+    }
+
+    /* ── problem line ────────────────────────────────────────────────────── */
+    section.problem {
+      padding: 100px 0 100px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    section.problem .blob {
+      width: 56%; aspect-ratio: 1.4 / 1;
+      left: 22%; top: 20%;
+      animation: blob-drift-a 14s ease-in-out infinite;
+    }
+    .problem-mascot {
+      width: 56px; height: 56px;
+      margin: 0 auto 28px;
+      display: block;
+      opacity: 0.9;
+      filter: drop-shadow(0 6px 12px rgba(21,17,12,.1));
+    }
+    .problem p {
+      font-family: var(--display);
+      font-size: clamp(28px, 3.6vw, 44px);
+      line-height: 1.25;
+      color: var(--ink2);
+      max-width: 820px;
+      margin: 0 auto;
+      letter-spacing: -0.015em;
+    }
+    .problem em { color: var(--ink); }
+
+    /* ── how it works ────────────────────────────────────────────────────── */
+    section.how {
+      padding: 80px 0 120px;
+      border-top: 1px solid var(--hairline);
+    }
+    .how-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 56px; }
+    .how-head h2 { max-width: 16ch; }
+    .how-head .eyebrow { letter-spacing: 0.15em; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+    .step-card {
+      background: var(--card);
+      border: 1px solid var(--hairline);
+      border-radius: 10px;
+      padding: 0;
+      overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .step-visual {
+      aspect-ratio: 4 / 3;
+      background: var(--cream);
+      position: relative;
+      border-bottom: 1px solid var(--hairline);
+      overflow: hidden;
+    }
+    .step-meta { padding: 22px 22px 26px; }
+    .step-meta .n {
+      font-family: var(--mono); font-size: 11px;
+      color: var(--accent); letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .step-meta .t {
+      font-family: var(--display); font-size: 24px;
+      letter-spacing: -0.015em;
+      line-height: 1.15;
+      margin-bottom: 8px;
+    }
+    .step-meta .d {
+      font-size: 14px; color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* step 1 visual — keycaps */
+    .keys-stage {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px;
+    }
+    .keys-stage .kbd {
+      width: 48px; height: 48px;
+      font-size: 18px;
+      border-radius: 8px;
+      box-shadow: 0 2px 0 rgba(21,17,12,.10), 0 6px 16px -6px rgba(21,17,12,.18);
+    }
+    /* ⌘ + ⇧ press together, then G after a beat */
+    .keys-stage .kbd:nth-child(1),
+    .keys-stage .kbd:nth-child(3) {
+      animation: key-press-mod 3s ease-in-out infinite;
+    }
+    .keys-stage .kbd:nth-child(5) {
+      animation: key-press-letter 3s ease-in-out infinite;
+    }
+    @keyframes key-press-mod {
+      0%, 55%, 100% { transform: translateY(0); }
+      62%, 88%      { transform: translateY(3px); background: var(--cream); }
+    }
+    @keyframes key-press-letter {
+      0%, 70%, 100% { transform: translateY(0); }
+      78%, 88%      { transform: translateY(3px); background: var(--cream); }
+    }
+    .keys-plus { color: var(--whisper); font-family: var(--mono); font-size: 14px; }
+
+    /* step 2 visual — selection box drawing */
+    .sel-stage {
+      position: absolute; inset: 0;
+      background:
+        linear-gradient(180deg, var(--vellum) 0%, var(--cream) 100%);
+      overflow: hidden;
+    }
+    .fake-ui {
+      position: absolute;
+      left: 18%; top: 22%; right: 18%; bottom: 22%;
+      background: var(--vellum);
+      border: 1px solid var(--hairline);
+      border-radius: 5px;
+      box-shadow: 0 4px 12px -6px rgba(21,17,12,.12);
+      display: flex; flex-direction: column;
+      padding: 10px;
+      gap: 6px;
+    }
+    .fake-row {
+      height: 6px; background: var(--cream); border-radius: 2px;
+    }
+    .fake-row.short { width: 60%; }
+    .fake-row.tall  { height: 16px; background: var(--cream); }
+    .sel-overlay {
+      position: absolute;
+      left: 32%; top: 38%;
+      width: 38%; height: 32%;
+      border: 1.5px dashed var(--accent);
+      background: rgba(230,75,31,.08);
+      border-radius: 3px;
+      animation: sel-grow 3s ease-in-out infinite;
+    }
+    @keyframes sel-grow {
+      0%      { width: 0;  height: 0; opacity: 0; }
+      10%     { opacity: 1; }
+      55%     { width: 38%; height: 32%; }
+      90%,100%{ width: 38%; height: 32%; opacity: 1; }
+    }
+    .cursor-svg {
+      position: absolute;
+      /* cursor tip (path's (2,1) point) aligns with selection corner */
+      left: 32%; top: 38%;
+      width: 16px; height: 18px;
+      /* shift so the arrow's tip sits exactly on the left/top coords */
+      margin-left: -1.8px;
+      margin-top:  -0.9px;
+      filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.35));
+      animation: cursor-drag 3s ease-in-out infinite;
+    }
+    @keyframes cursor-drag {
+      0%      { left: 32%;  top: 38%;  opacity: 0; }
+      8%      { left: 32%;  top: 38%;  opacity: 1; }
+      55%     { left: 70%;  top: 70%;  opacity: 1; }
+      90%,100%{ left: 70%;  top: 70%;  opacity: 1; }
+    }
+
+    /* step 3 visual — answer card */
+    .ans-stage {
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, var(--vellum) 0%, var(--cream) 100%);
+      display: flex; align-items: center; justify-content: center;
+      padding: 22px;
+    }
+    .mini-answer {
+      width: 100%;
+      max-width: 240px;
+      background: var(--vellum);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow: 0 12px 24px -10px rgba(21,17,12,.18);
+    }
+    .mini-answer .h {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px;
+    }
+    .mini-answer .h img { width: 18px; height: 18px; }
+    .mini-answer .h span {
+      font-family: var(--mono); font-size: 9.5px;
+      color: var(--muted); letter-spacing: 0.06em;
+    }
+    .mini-answer ol {
+      margin: 0; padding-left: 0;
+      list-style: none;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .mini-answer ol li {
+      display: flex; gap: 7px; align-items: flex-start;
+      font-size: 10.5px; color: var(--ink2); line-height: 1.4;
+    }
+    .mini-answer .nn {
+      width: 13px; height: 13px;
+      border: 1px solid var(--line);
+      background: var(--cream);
+      border-radius: 2px;
+      font-family: var(--mono); font-size: 8.5px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; color: var(--muted); line-height: 1;
+    }
+    .mini-answer .line {
+      flex: 1;
+      height: 6px; background: var(--cream); border-radius: 2px;
+    }
+    .mini-answer .line.short { width: 60%; flex: none; }
+
+    /* ── real example ────────────────────────────────────────────────────── */
+    section.example {
+      padding: 80px 0 120px;
+      border-top: 1px solid var(--hairline);
+    }
+    .example-head { margin-bottom: 56px; max-width: 760px; }
+    .example-head .eyebrow-row {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 14px;
+    }
+    .example-head .eyebrow-row img { width: 24px; height: 24px; }
+    .example-head h2 { margin-bottom: 24px; text-wrap: balance; }
+    .example-head p {
+      color: var(--muted);
+      font-size: 17px;
+      max-width: 540px;
+      line-height: 1.5;
+    }
+
+    .demo {
+      position: relative;
+      background: var(--cream);
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+      overflow: hidden;
+      aspect-ratio: 16 / 9.4;
+    }
+
+    /* fake figma chrome */
+    .fig-top {
+      height: 32px;
+      background: #2a2a2d;
+      display: flex; align-items: center;
+      padding: 0 14px;
+      gap: 14px;
+      color: rgba(242,238,226,.5);
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    .fig-top .dots { display: flex; gap: 6px; }
+    .fig-top .dots span {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: #3a3a3d;
+    }
+    .fig-top .doc { color: rgba(242,238,226,.7); }
+    .fig-top .doc::before { content: "◇  "; color: var(--accent); }
+
+    .fig-canvas {
+      position: absolute;
+      top: 32px; left: 0; right: 0; bottom: 0;
+      background:
+        radial-gradient(ellipse at 30% 30%, #2c2c2f 0%, var(--charcoal) 70%);
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* the artboard the user is asking about */
+    .artboard {
+      width: 38%;
+      aspect-ratio: 9 / 11;
+      background: var(--paper);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 30px 60px -20px rgba(0,0,0,.5);
+      position: relative;
+    }
+    .artboard .hd {
+      font-family: var(--display);
+      font-size: 22px;
+      letter-spacing: -0.015em;
+      margin-bottom: 4px;
+    }
+    .artboard .sub {
+      font-size: 11px; color: var(--muted); margin-bottom: 16px;
+    }
+    .artboard .pic {
+      height: 38%;
+      background:
+        repeating-linear-gradient(135deg, var(--cream) 0 6px, var(--vellum) 6px 12px);
+      border-radius: 8px;
+      margin-bottom: 14px;
+    }
+    .artboard .price {
+      font-family: var(--display);
+      font-size: 26px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .artboard .meta {
+      font-size: 10.5px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .artboard .b {
+      height: 32px;
+      background: var(--ink);
+      color: var(--paper);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+    /* the selected element — the button — gets a red selection */
+    .artboard .b { position: relative; }
+    .sel-wrap {
+      position: absolute;
+      inset: -8px;
+      border: 1.5px dashed var(--accent);
+      border-radius: 8px;
+      background: rgba(230,75,31,.06);
+      pointer-events: none;
+    }
+    .sel-wrap i {
+      position: absolute;
+      width: 8px; height: 8px;
+      background: var(--accent);
+      border: 2px solid var(--paper);
+      border-radius: 2px;
+    }
+    .sel-wrap i.tl { top: -5px; left: -5px; }
+    .sel-wrap i.tr { top: -5px; right: -5px; }
+    .sel-wrap i.bl { bottom: -5px; left: -5px; }
+    .sel-wrap i.br { bottom: -5px; right: -5px; }
+
+    /* the answer card on the right */
+    .demo-answer {
+      position: absolute;
+      right: 6%; top: 50%;
+      transform: translateY(-50%);
+      width: 30%;
+      min-width: 280px;
+      background: var(--vellum);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px 22px 22px;
+      box-shadow:
+        0 1px 0 rgba(255,255,255,.7) inset,
+        0 30px 60px -20px rgba(0,0,0,.4);
+    }
+    .demo-answer .ah {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 12px;
+    }
+    .demo-answer .ah img { width: 28px; height: 28px; }
+    .demo-answer .ah .l {
+      font-family: var(--mono); font-size: 11px;
+      color: var(--muted); letter-spacing: 0.06em;
+    }
+    .demo-answer .ah .d {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--accent);
+      margin-left: auto;
+    }
+    .demo-answer .q {
+      font-family: var(--display);
+      font-size: 19px;
+      font-style: italic;
+      line-height: 1.25;
+      margin-bottom: 16px;
+      color: var(--ink);
+    }
+    .demo-answer .a-steps {
+      display: flex; flex-direction: column; gap: 11px;
+    }
+    .demo-answer .a-step {
+      display: flex; gap: 11px; align-items: flex-start;
+    }
+    .demo-answer .a-step .n {
+      width: 20px; height: 20px;
+      border: 1px solid var(--line);
+      background: var(--cream);
+      border-radius: 3px;
+      font-family: var(--mono); font-size: 11.5px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); line-height: 1; flex-shrink: 0;
+    }
+    .demo-answer .a-step .x {
+      font-size: 13.5px; line-height: 1.5; color: var(--ink2);
+    }
+    .demo-answer .a-step code {
+      font-size: 11.5px;
+    }
+    .demo-caption {
+      margin-top: 22px;
+      font-family: var(--display);
+      font-size: 17px;
+      font-style: italic;
+      color: var(--muted);
+      max-width: 640px;
+    }
+
+    /* ── value props ─────────────────────────────────────────────────────── */
+    section.values {
+      padding: 80px 0 120px;
+      border-top: 1px solid var(--hairline);
+    }
+    .values-head { margin-bottom: 48px; max-width: 720px; }
+    .values-head .eyebrow { margin-bottom: 12px; display: block; }
+    .v-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .v-card {
+      background: var(--card);
+      border: 1px solid var(--hairline);
+      border-radius: 10px;
+      padding: 28px 28px 32px;
+      display: flex; flex-direction: column;
+      gap: 14px;
+      min-height: 220px;
+    }
+    .v-card .ic {
+      width: 38px; height: 38px;
+      border: 1px solid var(--ink);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--ink);
+      background: var(--vellum);
+    }
+    .v-card .l {
+      font-family: var(--display);
+      font-size: 24px; line-height: 1.15;
+      letter-spacing: -0.01em;
+      margin-top: auto;
+    }
+    .v-card .d {
+      font-size: 14.5px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ── pricing ─────────────────────────────────────────────────────────── */
+    section.pricing {
+      padding: 80px 0 120px;
+      border-top: 1px solid var(--hairline);
+    }
+    .pricing-head { text-align: center; margin-bottom: 56px; }
+    .pricing-head .eyebrow { display: block; margin-bottom: 12px; }
+    .pricing-head h2 { margin: 0 auto; max-width: 18ch; }
+    .tier-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; max-width: 880px; margin: 0 auto; }
+    .tier {
+      background: var(--card);
+      border: 1px solid var(--hairline);
+      border-radius: 12px;
+      padding: 32px 30px 36px;
+      display: flex; flex-direction: column;
+      gap: 18px;
+      min-height: 340px;
+    }
+    .tier.pro {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+      position: relative;
+    }
+    .tier.pro .tier-name,
+    .tier.pro .tier-price,
+    .tier.pro .tier-blurb,
+    .tier.pro .tier-list li { color: var(--paper); }
+    .tier.pro .tier-blurb { color: rgba(242,238,226,.7); }
+    .tier.pro .tier-list li { color: rgba(242,238,226,.85); }
+    .tier.pro .tier-list .check { color: var(--accentHi); }
+    .tier.pro .tier-cta {
+      background: var(--paper);
+      color: var(--ink);
+      border-color: var(--paper);
+    }
+    .tier.pro .tier-cta:hover { background: #fff; }
+    .tier-name {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .tier.pro .tier-name { color: rgba(242,238,226,.55); }
+    .tier-price {
+      font-family: var(--display);
+      font-size: 56px;
+      line-height: 1;
+      letter-spacing: -0.025em;
+      color: var(--ink);
+    }
+    .tier-price .per {
+      font-family: var(--mono);
+      font-size: 13px;
+      letter-spacing: 0;
+      color: var(--muted);
+      margin-left: 4px;
+    }
+    .tier.pro .tier-price .per { color: rgba(242,238,226,.55); }
+    .tier-blurb {
+      font-size: 15.5px;
+      color: var(--ink2);
+      line-height: 1.45;
+      max-width: 38ch;
+    }
+    .tier-list {
+      list-style: none;
+      margin: 0; padding: 0;
+      display: flex; flex-direction: column;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--ink2);
+    }
+    .tier-list li { display: flex; gap: 10px; align-items: flex-start; }
+    .tier-list .check {
+      width: 14px; height: 14px;
+      color: var(--accent);
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+    .tier-cta {
+      margin-top: auto;
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 12px 16px;
+      font-family: var(--font); font-size: 14px; font-weight: 500;
+      border-radius: 6px;
+      border: 1px solid var(--ink);
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      transition: background .15s ease, color .15s ease;
+    }
+    .tier-cta:hover { background: var(--ink); color: var(--paper); }
+    .pricing-note {
+      margin-top: 28px;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+
+    /* ── final CTA ───────────────────────────────────────────────────────── */
+    section.final-cta {
+      padding: 120px 0 140px;
+      text-align: center;
+      border-top: 1px solid var(--hairline);
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    section.final-cta .blob {
+      width: 38%; aspect-ratio: 1;
+      left: 31%; top: 6%;
+      animation: blob-drift-b 12s ease-in-out infinite;
+    }
+    .final-cta img.mascot-big {
+      width: 160px; height: 160px;
+      margin: 0 auto 32px;
+      display: block;
+      position: relative;
+      z-index: 1;
+      filter: drop-shadow(0 30px 30px rgba(21,17,12,.18));
+      animation: mascot-bob 6s ease-in-out infinite;
+    }
+    .final-cta h2 { margin-bottom: 22px; }
+    .final-cta .btn-meta { margin-top: 14px; }
+
+    /* ── footer ──────────────────────────────────────────────────────────── */
+    footer {
+      padding: 36px 0 56px;
+      border-top: 1px solid var(--hairline);
+    }
+    footer .inner {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 24px; flex-wrap: wrap;
+    }
+    footer .left { display: flex; align-items: center; gap: 12px; }
+    footer .left img { width: 22px; height: 22px; }
+    footer .tag {
+      font-family: var(--display);
+      font-style: italic;
+      font-size: 16px;
+      color: var(--muted);
+    }
+    footer .links { display: flex; gap: 24px; font-size: 13px; color: var(--muted); }
+    footer .links a:hover { color: var(--ink); }
+    footer .copy {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--whisper);
+      letter-spacing: 0.04em;
+    }
+
+    /* ── responsive ──────────────────────────────────────────────────────── */
+    @media (max-width: 860px) {
+      .hero-grid { grid-template-columns: 1fr; gap: 56px; }
+      .scene { margin-left: 0; max-width: 100%; }
+      .steps { grid-template-columns: 1fr; gap: 20px; }
+      .v-grid { grid-template-columns: 1fr; gap: 16px; }
+      .tier-grid { grid-template-columns: 1fr; }
+      .v-card { min-height: 0; padding: 24px; }
+      .how-head { flex-direction: column; align-items: flex-start; gap: 16px; }
+    }
+    @media (max-width: 640px) {
+      .wrap { padding: 0 22px; }
+      nav.top .inner { padding: 12px 22px; }
+      section.hero { padding: 56px 0 72px; }
+      section.problem { padding: 72px 0; }
+      section.how, section.example, section.values, section.pricing { padding: 64px 0 80px; }
+      section.final-cta { padding: 84px 0 96px; }
+      .hero-sub { font-size: 17px; }
+      .nav-links { gap: 16px; }
+      .nav-links a:not(.nav-cta) { display: none; }
+      .demo { aspect-ratio: 4 / 5.2; }
+      .artboard { width: 70%; }
+      .demo-answer {
+        position: absolute;
+        right: 6%; top: auto; bottom: 6%;
+        transform: none;
+        width: 60%; min-width: 0;
+      }
+      .demo-caption { font-size: 15px; }
+      .answer { width: 78%; }
+      .scene-window { inset: 0 12% 26% 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── nav ─────────────────────────────────────────────────────────────── -->
+  <nav class="top">
+    <div class="inner">
+      <div class="brand">
+        <img src="assets/mascot-pebble.png" alt="" />
+        <span class="brand-name">Glimpse</span>
+      </div>
+      <div class="nav-links">
+        <a href="#how">How it works</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#download" class="nav-cta">Download</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── hero ────────────────────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="blob blob-orange"></div>
+    <div class="wrap hero-grid">
+      <div>
+        <div class="eyebrow">A glance is all it takes</div>
+        <h1 style="margin-top: 22px;">
+          Stuck?<br/>
+          Just <em>show</em> it.
+        </h1>
+        <p class="hero-sub">
+          Press a key, circle what's confusing, ask. Glimpse sees your screen and tells you exactly what to do.
+        </p>
+
+        <div class="hero-keys">
+          <span>Press</span>
+          <span class="kbd-row">
+            <span class="kbd">⌘</span>
+            <span class="kbd-plus">+</span>
+            <span class="kbd">⇧</span>
+            <span class="kbd-plus">+</span>
+            <span class="kbd">G</span>
+          </span>
+          <span>anywhere.</span>
+        </div>
+
+        <div class="hero-cta" id="download">
+          <a class="btn" href="mailto:hello@glimpse.app?subject=Glimpse%20Mac%20early%20access">
+            <svg class="apple" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M11.3 8.4c0-1.9 1.5-2.7 1.6-2.8-.9-1.3-2.2-1.5-2.7-1.5-1.1-.1-2.2.7-2.8.7-.6 0-1.4-.7-2.4-.7-1.2 0-2.4.7-3 1.8-1.3 2.2-.3 5.5.9 7.3.6.9 1.3 1.9 2.3 1.8.9 0 1.3-.6 2.4-.6 1.1 0 1.4.6 2.4.6 1 0 1.6-.9 2.2-1.7.7-1 1-2 1-2-.1 0-1.9-.7-1.9-2.9zM9.6 2.8c.5-.6.9-1.5.8-2.3-.7 0-1.6.5-2.1 1.1-.5.5-.9 1.4-.8 2.2.8.1 1.6-.4 2.1-1z"/>
+            </svg>
+            Request Mac beta
+          </a>
+          <span class="btn-meta">Free to try · macOS 12+ · Early access</span>
+        </div>
+      </div>
+
+      <!-- visual: mascot-led composition with floating snippet + answer -->
+      <div>
+        <div class="scene" aria-hidden="true">
+
+          <div class="blob blob-orange g1"></div>
+          <div class="blob blob-amber g2"></div>
+
+          <!-- the user circled this -->
+          <div class="hero-snippet">
+            <div class="snip-chrome">
+              <span class="snip-dot"></span>
+              <span class="snip-dot"></span>
+              <span class="snip-dot"></span>
+              <span class="snip-title">auth.service.ts</span>
+            </div>
+            <div class="snip-body">
+              <div><span class="cm">// fails on refresh</span></div>
+              <div><span class="kw">const</span> p = <span class="kw">await</span> <span class="fn">jwt.verify</span>(t);</div>
+              <div><span class="kw">if</span> (!p?.sub) <span class="kw">throw</span>;</div>
+              <div class="snip-sel"><i></i></div>
+            </div>
+          </div>
+
+          <!-- the mascot -->
+          <img class="hero-mascot" src="assets/mascot-pebble.png" alt="" />
+
+          <!-- glim's answer -->
+          <div class="hero-answer">
+            <div class="answer-head">
+              <img src="assets/mascot-pebble.png" alt="" />
+              <span class="label">GLIM</span>
+              <span class="dot" style="margin-left:auto"></span>
+            </div>
+            <div class="answer-q"><em>Why does jwt.verify fail on&nbsp;refresh?</em></div>
+            <div class="answer-steps">
+              <div class="answer-step">
+                <div class="step-num">1</div>
+                <div class="step-text">Pass <code>secret</code> to <code>verify()</code> — refresh tokens use a different one.</div>
+              </div>
+              <div class="answer-step">
+                <div class="step-num">2</div>
+                <div class="step-text">Wrap in <code>try / catch</code> to catch expiry errors cleanly.</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── problem ─────────────────────────────────────────────────────────── -->
+  <section class="problem">
+    <div class="wrap">
+      <p>
+        You know the feeling. A button you don't recognize. A menu that moved. A setting you can't <em>quite</em> find.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── how it works ────────────────────────────────────────────────────── -->
+  <section class="how" id="how">
+    <div class="wrap">
+      <div class="how-head">
+        <h2>Three steps.<br/>About three seconds.</h2>
+        <div class="eyebrow">How it works</div>
+      </div>
+
+      <div class="steps">
+
+        <!-- step 1 -->
+        <div class="step-card">
+          <div class="step-visual">
+            <div class="keys-stage">
+              <span class="kbd">⌘</span>
+              <span class="keys-plus">+</span>
+              <span class="kbd">⇧</span>
+              <span class="keys-plus">+</span>
+              <span class="kbd">G</span>
+            </div>
+          </div>
+          <div class="step-meta">
+            <div class="n">01 · Press</div>
+            <div class="t">Hit <code style="font-family:var(--mono); font-size:18px;">⌘⇧G</code></div>
+            <div class="d">Anywhere, in any app. Glimpse lives in your menu bar.</div>
+          </div>
+        </div>
+
+        <!-- step 2 -->
+        <div class="step-card">
+          <div class="step-visual">
+            <div class="sel-stage">
+              <div class="fake-ui">
+                <div class="fake-row tall"></div>
+                <div class="fake-row"></div>
+                <div class="fake-row short"></div>
+                <div class="fake-row"></div>
+                <div class="fake-row short"></div>
+              </div>
+              <div class="sel-overlay"></div>
+              <svg class="cursor-svg" viewBox="0 0 18 20">
+                <path d="M2 1 L2 16 L6 12 L9 18 L11.5 17 L8.5 11 L14 11 Z"
+                      fill="#0A0A0B" stroke="#fff" stroke-width="1.2" stroke-linejoin="round" />
+              </svg>
+            </div>
+          </div>
+          <div class="step-meta">
+            <div class="n">02 · Circle</div>
+            <div class="t">Drag a box</div>
+            <div class="d">Around whatever's confusing — a button, a formula, an error.</div>
+          </div>
+        </div>
+
+        <!-- step 3 -->
+        <div class="step-card">
+          <div class="step-visual">
+            <div class="ans-stage">
+              <div class="mini-answer">
+                <div class="h">
+                  <img src="assets/mascot-pebble.png" alt="" />
+                  <span>ANSWER</span>
+                </div>
+                <ol>
+                  <li><span class="nn">1</span><span class="line"></span></li>
+                  <li><span class="nn">2</span><span class="line short"></span></li>
+                  <li><span class="nn">3</span><span class="line"></span></li>
+                </ol>
+              </div>
+            </div>
+          </div>
+          <div class="step-meta">
+            <div class="n">03 · Ask</div>
+            <div class="t">Get clear steps</div>
+            <div class="d">Type your question. Glimpse reads the screen and answers in seconds.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── real example ────────────────────────────────────────────────────── -->
+  <section class="example">
+    <div class="wrap">
+      <div class="example-head">
+        <div class="eyebrow-row">
+          <img src="assets/mascot-pebble.png" alt="" />
+          <span class="eyebrow">A real example</span>
+        </div>
+        <h2>Asked in a design tool.<br/>Answered on the spot.</h2>
+        <p>The selection covers exactly the element in question. The answer points to the panel you need, in the version you have.</p>
+      </div>
+
+      <div class="demo">
+        <div class="fig-top">
+          <div class="dots">
+            <span></span><span></span><span></span>
+          </div>
+          <span class="doc">Pricing card — Frame 12</span>
+        </div>
+        <div class="fig-canvas">
+          <div class="artboard">
+            <div class="hd">Pro plan</div>
+            <div class="sub">For teams that ship</div>
+            <div class="pic"></div>
+            <div class="price">$9/mo</div>
+            <div class="meta">Unlimited questions. Cancel any time.</div>
+            <div class="b">Get started<span class="sel-wrap"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></span></div>
+          </div>
+
+          <div class="demo-answer">
+            <div class="ah">
+              <img src="assets/mascot-pebble.png" alt="" />
+              <span class="l">GLIMPSE</span>
+              <span class="d"></span>
+            </div>
+            <div class="q"><em>How do I round only the top corners of this button?</em></div>
+            <div class="a-steps">
+              <div class="a-step">
+                <div class="n">1</div>
+                <div class="x">Select the layer, then open the <code>Corner radius</code> control in the right panel.</div>
+              </div>
+              <div class="a-step">
+                <div class="n">2</div>
+                <div class="x">Click the small <code>⋮</code> icon — it expands to four per-corner inputs.</div>
+              </div>
+              <div class="a-step">
+                <div class="n">3</div>
+                <div class="x">Set the top two to <code>8</code>, leave the bottom at <code>0</code>.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="demo-caption">Real answer. Real screen. About three seconds.</p>
+    </div>
+  </section>
+
+  <!-- ── value props ─────────────────────────────────────────────────────── -->
+  <section class="values">
+    <div class="wrap">
+      <div class="values-head">
+        <span class="eyebrow">Why people like it</span>
+        <h2>It just sits there. Until you need it.</h2>
+      </div>
+
+      <div class="v-grid">
+        <div class="v-card">
+          <div class="ic" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <rect x="1.5" y="1.5" width="15" height="15" rx="3" stroke="currentColor" stroke-width="1.4"/>
+              <path d="M5 9h8M9 5v8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div>
+            <div class="l">Works everywhere</div>
+            <div class="d" style="margin-top:6px;">Any app on your Mac. No integrations, no setup.</div>
+          </div>
+        </div>
+
+        <div class="v-card">
+          <div class="ic" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <circle cx="9" cy="9" r="3" stroke="currentColor" stroke-width="1.4"/>
+              <path d="M1.5 9c2-3.5 4.5-5 7.5-5s5.5 1.5 7.5 5c-2 3.5-4.5 5-7.5 5s-5.5-1.5-7.5-5z" stroke="currentColor" stroke-width="1.4"/>
+            </svg>
+          </div>
+          <div>
+            <div class="l">Knows your version</div>
+            <div class="d" style="margin-top:6px;">Sees exactly what's on your screen — not a generic guide from 2019.</div>
+          </div>
+        </div>
+
+        <div class="v-card">
+          <div class="ic" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M3 6h12M3 9h12M3 12h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              <circle cx="14" cy="3.5" r="1.6" fill="currentColor"/>
+            </svg>
+          </div>
+          <div>
+            <div class="l">Stays out of the way</div>
+            <div class="d" style="margin-top:6px;">Lives in your menu bar. Shows up only when you call it.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── pricing ─────────────────────────────────────────────────────────── -->
+  <section class="pricing" id="pricing">
+    <div class="wrap">
+      <div class="pricing-head">
+        <span class="eyebrow">Pricing</span>
+        <h2>Two plans. Honest math.</h2>
+      </div>
+
+      <div class="tier-grid">
+
+        <div class="tier">
+          <div class="tier-name">Free</div>
+          <div class="tier-price">$0<span class="per">/ forever</span></div>
+          <p class="tier-blurb">Five questions a month. No card needed. See if it fits.</p>
+          <ul class="tier-list">
+            <li><svg class="check" viewBox="0 0 14 14" fill="none"><path d="M2 7l3.5 3.5L12 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>5 questions per month</li>
+            <li><svg class="check" viewBox="0 0 14 14" fill="none"><path d="M2 7l3.5 3.5L12 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>All apps supported</li>
+            <li><svg class="check" viewBox="0 0 14 14" fill="none"><path d="M2 7l3.5 3.5L12 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>One follow-up per question</li>
+          </ul>
+          <a class="tier-cta" href="mailto:hello@glimpse.app?subject=Glimpse%20Free%20plan">Request free access</a>
+        </div>
+
+        <div class="tier pro">
+          <div class="tier-name">Pro</div>
+          <div class="tier-price">$9/ month</div>
+          <p class="tier-blurb">Unlimited questions. Follow up as much as you need — one problem still counts as one.</p>
+          <ul class="tier-list">
+            <li><svg class="check" viewBox="0 0 14 14" fill="none"><path d="M2 7l3.5 3.5L12 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Unlimited questions</li>
+            <li><svg class="check" viewBox="0 0 14 14" fill="none"><path d="M2 7l3.5 3.5L12 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Free follow-ups within a task</li>
+            <li><svg class="check" viewBox="0 0 14 14" fill="none"><path d="M2 7l3.5 3.5L12 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Priority answers</li>
+          </ul>
+          <a class="tier-cta" href="mailto:hello@glimpse.app?subject=Glimpse%20Pro%20trial">Start 14-day trial</a>
+        </div>
+
+      </div>
+
+      <p class="pricing-note">Cancel anytime · No account required to start</p>
+    </div>
+  </section>
+
+  <!-- ── final CTA ───────────────────────────────────────────────────────── -->
+  <section class="final-cta">
+    <div class="wrap">
+      <img class="mascot-big" src="assets/mascot-pebble.png" alt="" />
+      <h2>Get unstuck<br/>in seconds.</h2>
+      <a class="btn" href="mailto:hello@glimpse.app?subject=Glimpse%20Mac%20early%20access" style="margin-top: 18px;">
+        <svg class="apple" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M11.3 8.4c0-1.9 1.5-2.7 1.6-2.8-.9-1.3-2.2-1.5-2.7-1.5-1.1-.1-2.2.7-2.8.7-.6 0-1.4-.7-2.4-.7-1.2 0-2.4.7-3 1.8-1.3 2.2-.3 5.5.9 7.3.6.9 1.3 1.9 2.3 1.8.9 0 1.3-.6 2.4-.6 1.1 0 1.4.6 2.4.6 1 0 1.6-.9 2.2-1.7.7-1 1-2 1-2-.1 0-1.9-.7-1.9-2.9zM9.6 2.8c.5-.6.9-1.5.8-2.3-.7 0-1.6.5-2.1 1.1-.5.5-.9 1.4-.8 2.2.8.1 1.6-.4 2.1-1z"/>
+        </svg>
+        Request Mac beta
+      </a>
+      <span class="btn-meta">Free to try · No account required to start</span>
+    </div>
+  </section>
+
+  <!-- ── footer ──────────────────────────────────────────────────────────── -->
+  <footer>
+    <div class="wrap inner">
+      <div class="left">
+        <img src="assets/mascot-pebble.png" alt="" />
+        <span class="brand-name" style="font-size:18px;">Glimpse</span>
+        <span class="tag">— A glance is all it takes.</span>
+      </div>
+      <div class="links">
+        <a href="#how">How it works</a>
+        <a href="#pricing">Pricing</a>
+        <a href="mailto:hello@glimpse.app">Contact</a>
+        <a href="#download">Download</a>
+      </div>
+      <div class="copy">© 2026</div>
+    </div>
+  </footer>
+
+</body>
+</html>

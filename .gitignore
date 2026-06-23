@@ -1,0 +1,13 @@
+dist/
+node_modules/
+.DS_Store
+
+# Draft workspace artifacts kept locally, outside the production landing commit.
+.design-canvas.state.json
+.thumbnail
+Glimpse.html
+Landing.html
+Landing-print.html
+*.jsx
+scraps/
+uploads/
